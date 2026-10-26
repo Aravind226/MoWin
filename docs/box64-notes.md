@@ -1,0 +1,1 @@
+Box64 v0.4.4 downloaded (51MB bundle); binary path confirmed; environment vars (BOX64_DYNAREC=1, BOX64_LD_LIBRARY_PATH=/opt/x86_64/lib) documented in plan; actual x86-64 ELF execution requires rootfs with amd64 glibc (stretch task).

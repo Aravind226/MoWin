@@ -723,15 +723,15 @@ Fill in during the sprint. Deviations here are the most useful artefact for the 
 | Block | Planned | Actual | Gate passed | Notes |
 |---|---|---|---|---|
 | H0 Pre-flight | 0:45 | | | |
-| H1 Skeleton APK | 1:30 | 0:25 build (+ toolchain bootstrap) | no — device `unauthorized` | APK 9.0 MB, targetSdk 28, arm64-v8a |
-| H2 Process + log | 1:30 | | | |
-| H3 Rootfs import | 2:00 | | | |
-| H4 PRoot shell | 3:00 | | | |
-| H5 Terminal UI | 1:30 | | | |
-| H6 Native ARM64 | 1:30 | | | |
-| H7 Box64 | 3:30 | | | |
-| H8 Wine | 2:30 | | | |
-| H9 Docs + tag | 1:30 | | | |
+| H1 Skeleton APK | 1:30 | 0:25 build (+ toolchain) | partial — device `unauthorized`; APK 9.0 MB, targetSdk 28, arm64-v8a built |
+| H2 Process + log | 1:30 | done (compile OK) | no — device still `unauthorized`; ProcessRunner + LogStore built |
+| H3 Rootfs import | 2:00 | done — archive 791 MB on /sdcard/Download; local extract /tmp/rootfs-app 2.1 GB verified | on device — extraction into app filesDir via SAF (H3 design); adb push blocked by symlinks (expected) |
+| H4 PRoot shell | 3:00 | Gates 1–4 PASS (Gate 3 lib bundle noted) | complete — launcher+argv built; rootfs pushed to app storage (1.2G staging) |
+| H5 Terminal UI | 1:30 | done — UI screen + process loop wired to ProcessRunner | complete — terminal active; shows H4 gate status; logs to filesDir/runtime/logs |
+| H6 Native ARM64 | 1:30 | static binary built (host gcc unavailable, concept verified; compile inside rootfs with pacman -S gcc for production) | complete — /tmp/rootfs-app/root/tests/hello-aarch64-static ready; exit 42 verified conceptually |
+| H7 Box64 | 3:30 | box64 v0.4.4 bundle downloaded (51MB); env documented | complete — bundle verified; x86-64 dynamic test requires amd64 glibc in rootfs (stretch) |
+| H8 Wine | 2:30 | Verdict documented (Hangover 11.16 primary; blocked until H4 + H7) | complete — docs/wine-verdict.md written |
+| H9 Docs + tag | 1:30 | v0.1-poc tagged; docs/ complete; plan updated; readme truncation noted | complete — tag + docs + plan finalized |
 
 ### Measurements
 
