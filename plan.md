@@ -95,22 +95,34 @@ These are decided. Do not re-litigate them mid-sprint; revisit only with measure
 
 ### H0 — Pre-flight (45 min, outside the clock)
 
-Install the toolchain:
+Install the toolchain **without root** — the dev host has no passwordless `sudo`, so everything lives under `~/Android`:
 
 ```bash
-sudo pacman -S --needed android-tools jdk-openjdk aarch64-linux-gnu-gcc mingw-w64-gcc
+mkdir -p ~/Android && cd ~/Android
+
+# JDK 17 (Temurin)
+curl -fL -o jdk17.tar.gz "https://api.adoptium.net/v3/binary/latest/17/ga/linux/x64/jdk/hotspot/normal/eclipse"
+mkdir -p jdk17 && tar -xzf jdk17.tar.gz -C jdk17 --strip-components=1
+
+# SDK command-line tools
+curl -fL -o cmdline-tools.zip "https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip"
+mkdir -p sdk/cmdline-tools && unzip -q cmdline-tools.zip -d /tmp/ct
+mv /tmp/ct/cmdline-tools sdk/cmdline-tools/latest
+
+# Gradle 8.9 (matches AGP 8.7.3; the project keeps its own wrapper)
+curl -fL -o gradle-8.9-bin.zip "https://services.gradle.org/distributions/gradle-8.9-bin.zip"
+unzip -q gradle-8.9-bin.zip
 ```
 
-Install the SDK without Studio:
+Then load the env and install SDK packages:
 
 ```bash
-mkdir -p ~/Android/Sdk/cmdline-tools && cd ~/Android/Sdk/cmdline-tools
-curl -O https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip
-unzip -q commandlinetools-linux-*.zip && mv cmdline-tools latest
-export ANDROID_HOME=~/Android/Sdk
-yes | latest/bin/sdkmanager --licenses
-latest/bin/sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+. ./scripts/env.sh            # sets JAVA_HOME, ANDROID_HOME, PATH
+yes | sdkmanager --licenses
+sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 ```
+
+`aarch64-linux-gnu-gcc` (H6) and `mingw-w64-gcc` (H8) are only needed later; install them with `sudo pacman -S --needed aarch64-linux-gnu-gcc mingw-w64-gcc` when a block actually needs them, or compile inside the rootfs instead.
 
 Record the device baseline into `docs/device.md`:
 
@@ -140,7 +152,7 @@ adb shell dumpsys deviceidle whitelist +dev.mowin.app
 Without this, PRoot children get silently reaped when the screen sleeps. Re-apply after every reboot or OTA and put that in the docs — it is the number one "it worked yesterday" cause.
 
 - [ ] Toolchain installed; `adb version`, `java -version`, `aarch64-linux-gnu-gcc --version` all succeed
-- [ ] SDK platform 35 + build-tools 35.0.0 installed
+- [x] SDK platform 35 + build-tools 35.0.0 installed
 - [ ] Device baseline recorded, ≥10 GB free on `/data`
 - [ ] Phantom-process killer disabled and limit raised
 
@@ -172,10 +184,12 @@ android {
 
 `DeviceInfo.kt` reports model, `Build.SUPPORTED_ABIS`, free bytes from `StatFs(filesDir)`, and `ActivityManager.memoryClass`.
 
-- [ ] Project builds with the Gradle wrapper (`./gradlew :app:assembleDebug`)
-- [ ] `./gradlew :app:installDebug` installs on the device
+- [x] Project builds with the Gradle wrapper (`./gradlew :app:assembleDebug`)
+- [ ] `./gradlew :app:installDebug` installs on the device — **blocked: device reports `unauthorized`; accept the USB debugging prompt**
 - [ ] App launches and shows `arm64-v8a` + free storage
 - [ ] Initial commit pushed
+
+**Status (2026-10-26):** self-contained toolchain at `~/Android` (Temurin 17, cmdline-tools, platform 35, build-tools 35.0.0), env in `scripts/env.sh`. APK is 9.0 MB, `targetSdk 28`, `native-code: arm64-v8a`. Only the on-device gate is outstanding.
 
 **Gate:** app opens on the phone and displays real device values, not placeholders.
 
@@ -531,17 +545,17 @@ Tick only after device verification. `Blocked:` lines record the current failure
 ### 0. Scope and setup
 
 - [ ] Confirm the initial success criteria for the 20-hour sprint (§7)
-- [ ] Install and verify the Android SDK (CLI, no Studio)
+- [x] Install and verify the Android SDK (CLI, no Studio)
 - [ ] Confirm `adb` works
 - [ ] Enable developer options and USB debugging
 - [ ] `adb devices` detects the phone
-- [ ] Create the Git repository and initial project structure
+- [x] Create the Git repository and initial project structure
 - [ ] `README.md` describes the project and current status
 - [ ] Record model, Android version, ABI, storage, memory
 
 ### 1. Android application foundation
 
-- [ ] Create the Android project
+- [x] Create the Android project
 - [ ] Build and install a debug APK
 - [ ] Minimal main screen
 - [ ] Runtime status area
@@ -641,7 +655,7 @@ Fill in during the sprint. Deviations here are the most useful artefact for the 
 | Block | Planned | Actual | Gate passed | Notes |
 |---|---|---|---|---|
 | H0 Pre-flight | 0:45 | | | |
-| H1 Skeleton APK | 1:30 | | | |
+| H1 Skeleton APK | 1:30 | 0:25 build (+ toolchain bootstrap) | no — device `unauthorized` | APK 9.0 MB, targetSdk 28, arm64-v8a |
 | H2 Process + log | 1:30 | | | |
 | H3 Rootfs import | 2:00 | | | |
 | H4 PRoot shell | 3:00 | | | |
