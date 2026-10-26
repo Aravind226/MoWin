@@ -240,18 +240,18 @@ Not every game will complete this pipeline successfully. Failures at the CPU, Wi
 
 ### Phase 1 — Android foundation
 
-- [ ] Create the Android Studio project.
-- [ ] Install and launch the application on the target device.
-- [ ] Establish app-private storage for runtime files.
-- [ ] Implement a basic command execution and logging interface.
+- [x] Create the Android Studio project.
+- [x] Install and launch the application on the target device.
+- [x] Establish app-private storage for runtime files.
+- [x] Implement a basic command execution and logging interface.
 
 ### Phase 2 — Linux userspace
 
-- [ ] Obtain a compatible Arch Linux ARM64 root filesystem.
-- [ ] Initialize the root filesystem in app-managed storage.
-- [ ] Configure PRoot or an alternative execution environment.
-- [ ] Verify shell execution and persistent filesystem state.
-- [ ] Run and validate a native ARM64 Linux executable.
+- [x] Obtain a compatible Arch Linux ARM64 root filesystem.
+- [x] Initialize the root filesystem in app-managed storage.
+- [x] Configure PRoot or an alternative execution environment.
+- [x] Verify shell execution and persistent filesystem state.
+- [x] Run and validate a native ARM64 Linux executable.
 
 ### Phase 3 — Cross-architecture execution
 

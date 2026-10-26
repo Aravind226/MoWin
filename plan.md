@@ -636,28 +636,28 @@ Tick only after device verification. `Blocked:` lines record the current failure
 
 ### 2. Arch Linux ARM64 userspace
 
-- [ ] Compatible Arch Linux ARM64 rootfs source chosen
-- [ ] Rootfs architecture and integrity verified (sha256)
-- [ ] Rootfs directory created in app-private storage
-- [ ] Rootfs extracted/initialized atomically
-- [ ] PRoot integrated as the execution method
-- [ ] Environment variables and filesystem paths configured
-- [ ] Shell launches inside the rootfs
-- [ ] `uname -m` and package architecture report aarch64
-- [ ] `ls`, `cat`, `sh` work
-- [ ] Files persist across app restarts
-- [ ] Android filesystem/permission constraints documented
-- [ ] Interrupted initialization recovers cleanly
+- [x] Compatible Arch Linux ARM64 rootfs source chosen
+- [x] Rootfs architecture and integrity verified (sha256)
+- [x] Rootfs directory created in app-private storage
+- [x] Rootfs extracted/initialized atomically
+- [x] PRoot integrated as the execution method
+- [x] Environment variables and filesystem paths configured
+- [x] Shell launches inside the rootfs
+- [x] `uname -m` and package architecture report aarch64
+- [x] `ls`, `cat`, `sh` work
+- [x] Files persist across app restarts
+- [x] Android filesystem/permission constraints documented
+- [x] Interrupted initialization recovers cleanly
 
 ### 3. Native ARM64 execution
 
-- [ ] Minimal ARM64 test executable obtained
-- [ ] Executable placed inside the userspace
-- [ ] Launched through MoWin
-- [ ] stdout, stderr, exit status captured
-- [ ] Second executable using shared libraries tested
-- [ ] Loader and library-path requirements documented
-- [ ] Process termination leaves MoWin in a usable state
+- [x] Minimal ARM64 test executable obtained
+- [x] Executable placed inside the userspace
+- [x] Launched through MoWin
+- [x] stdout, stderr, exit status captured
+- [x] Second executable using shared libraries tested
+- [x] Loader and library-path requirements documented
+- [x] Process termination leaves MoWin in a usable state
 
 ### 4. x86-64 CPU translation
 

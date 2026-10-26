@@ -10,8 +10,6 @@ import dev.mowin.app.runtime.RuntimeState
 import dev.mowin.app.ui.MoWinTheme
 import dev.mowin.app.ui.RuntimeScreen
 
-import java.io.File
-
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -19,12 +17,6 @@ class MainActivity : ComponentActivity() {
 
         val paths = RuntimePaths(applicationContext)
         val layoutError = runCatching { paths.ensureLayout() }.exceptionOrNull()
-
-        // Initialize rootfs marker so RuntimeScreen shows Ready
-        runCatching {
-            paths.rootfs.mkdirs()
-            File(paths.rootfs, RuntimePaths.MARKER).writeText("v0.1-poc\n")
-        }
 
         setContent {
             MoWinTheme {
@@ -36,7 +28,7 @@ class MainActivity : ComponentActivity() {
                         else -> RuntimeState.NotInitialized
                     }
                 }
-                RuntimeScreen(snapshot = snapshot, state = state)
+                RuntimeScreen(snapshot = snapshot, state = state, paths = paths)
             }
         }
     }

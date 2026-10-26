@@ -9,11 +9,32 @@ package dev.mowin.app.runtime
  */
 object ProotLauncher {
 
+    fun hostEnv(nativeLibDir: String, tmpDir: String): Map<String, String> = mapOf(
+        "LD_LIBRARY_PATH" to nativeLibDir,
+        "PROOT_LOADER" to "$nativeLibDir/libproot-loader.so",
+        "PROOT_TMP_DIR" to tmpDir,
+        "PROOT_NO_SECCOMP" to "1",
+    )
+
     fun argv(
         prootPath: String,
         rootfsPath: String,
         nativeLibDir: String,
         hostDownloadPath: String,
+    ): List<String> = buildCommand(
+        prootPath = prootPath,
+        rootfsPath = rootfsPath,
+        nativeLibDir = nativeLibDir,
+        hostDownloadPath = hostDownloadPath,
+        command = listOf("/bin/bash", "-l"),
+    )
+
+    fun buildCommand(
+        prootPath: String,
+        rootfsPath: String,
+        nativeLibDir: String,
+        hostDownloadPath: String,
+        command: List<String>,
     ): List<String> = listOf(
         prootPath,
         "--kill-on-exit", "--link2symlink", "-0",
@@ -27,8 +48,5 @@ object ProotLauncher {
         "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin",
         "TERM=xterm-256color",
         "LANG=C.UTF-8",
-        "PROOT_NO_SECCOMP=1",
-        "LD_LIBRARY_PATH=$nativeLibDir",
-        "/bin/bash", "-l",
-    )
+    ) + command
 }

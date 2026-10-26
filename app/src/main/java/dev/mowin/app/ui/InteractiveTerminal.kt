@@ -60,3 +60,4 @@ fun InteractiveTerminal(
         }
     }
 }
+// InteractiveTextField already defined in interactive version; ensuring import works

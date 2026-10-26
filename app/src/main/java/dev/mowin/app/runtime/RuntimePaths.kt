@@ -29,7 +29,7 @@ class RuntimePaths(context: Context) {
         }
     }
 
-    fun isInitialized(): Boolean = File(rootfs, MARKER).isFile
+    fun isInitialized(): Boolean = File(rootfs, MARKER).isFile || File(rootfs, "usr/bin/pacman").isFile
 
     companion object {
         const val MARKER = ".mowin-init-complete"
