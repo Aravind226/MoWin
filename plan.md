@@ -59,19 +59,89 @@ A 20-hour budget reaches "an x86-64 Windows console binary runs inside a self-ma
 
 ## 3. Locked technical decisions
 
-These are decided. Do not re-litigate them mid-sprint; revisit only with measured evidence.
+These are the architectural decisions for the prototype. Items marked *provisional* are hypotheses to be validated during the sprint, not settled commitments. The hour-wise schedule in §4 is fixed and is not affected by this section.
 
-1. **`targetSdk 28`, `compileSdk 35`, `minSdk 26`, `arm64-v8a` only.**
-   Android 10+ blocks `execve` on files in app-writable storage for apps targeting API 29+. Termux pins 28 for this exact reason. This is a sideload-only proof of concept; accept the trade. Side benefits: no scoped storage, no foreground-service *type* declarations.
-2. **No Android Studio.** CLI + Gradle wrapper is faster on the dev host. Studio is optional for layout work later.
-3. **PRoot, not chroot and not a VM.** Runtime binaries ship as `jniLibs/arm64-v8a/*.so` because the native library directory is the only executable, app-owned location. Rootfs lives in `filesDir/runtime/rootfs`.
-4. **Build inside the Arch rootfs.** Once PRoot works, the rootfs is an ordinary glibc aarch64 Arch system, so Box64 and Wine are normal source/AUR builds with zero bionic cross-compilation.
-5. **Rootfs source:** `http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz` — 829 MB compressed, ~2.8 GB extracted (measured 2026-10-26). Development path is `adb push` + SAF import. The in-app downloader is a §10 nicety, not an H3 dependency.
-6. **CPU translation:** Box64 v0.4.4 (AUR `box64`). Time-saver: the Hangover 11.16 tarball already bundles an aarch64 `box64` binary of the same version — steal it if the build exceeds 45 minutes.
-7. **Windows layer:** Hangover 11.16 (Wine 11.16 + Box64 0.4.4 + FEX, WoW64 built in) is the primary candidate. It ships prebuilt `*_arm64.tar` bundles for Debian/Ubuntu glibc; Arch ARM's newer glibc should satisfy them. Fallback: ALARM `wine` (aarch64) plus `box64` for the PE. Hangover is not in the AUR, so this is a tarball drop, not a build.
-8. **Verification is device-only.** "It compiles" is never a gate.
+### 1. Android application
 
-**Dev host baseline (verified):** Arch Linux, 8 cores, 15 GB RAM, 157 GB free. `adb`, `java`, `gradle` and cross-compilers are **not installed** — that is H0.
+- MoWin is a standalone Android APK built with Kotlin and Jetpack Compose.
+- The application owns the UI, lifecycle, permissions, process execution, logging and diagnostics.
+- Use JNI/NDK only when native integration is genuinely required — in particular, only if the graphics investigation demonstrates a need.
+
+### 2. Self-contained Arch Linux ARM64 userspace
+
+- MoWin manages its own minimal Arch Linux ARM64 rootfs in app-private storage.
+- It must not depend on a separately installed Termux environment.
+- Rootfs import, extraction, persistence, integrity and recovery remain part of the development plan (§4, H3).
+
+### 3. PRoot is provisional
+
+- PRoot is the initial candidate for running the private rootfs on a non-rooted Android device.
+- Do not treat PRoot as a finalized architectural decision until its execution and graphics compatibility have been investigated.
+- PRoot grants no real root privileges and guarantees neither access to GPU device nodes nor to Android graphics interfaces.
+- Do not switch to chroot, LXC or a rooted-only design without evidence that the current approach cannot meet the requirements.
+
+### 4. GPU-accelerated Windows rendering is a core requirement
+
+Hardware-accelerated Windows rendering is one of MoWin's primary differentiators. It must not be treated as an optional feature that can be postponed indefinitely.
+
+The initial candidate graphics pipeline is:
+
+```text
+Windows x86/x64 application → Wine/Hangover → DXVK or VKD3D-Proton → Vulkan → Mesa Turnip/Freedreno → Adreno 740
+```
+
+The target device is a Samsung Galaxy S23 with Snapdragon 8 Gen 2 and Adreno 740, running non-rooted Android.
+
+This pipeline is a hypothesis, not a guarantee. In particular:
+
+- Android-native Vulkan support does not prove that Linux Vulkan works inside PRoot.
+- Successful Vulkan initialization does not prove that frames can be presented to an Android surface.
+- Successful Linux Vulkan rendering does not prove that a Windows application can render through Wine and DXVK.
+- Direct3D 12 through VKD3D-Proton must be assessed separately from Direct3D 9/10/11 through DXVK.
+
+For this 20-hour sprint, graphics work is limited to the read-only feasibility investigation in §5 below. The schedule in §4 is unchanged.
+
+### 5. GPU compatibility investigation
+
+Use the existing hour-wise schedule in §4. Do not create additional hours or reorder the schedule. Where the existing tasks allow, investigate graphics feasibility as early as practical; this section defines what the investigation must establish, not a new set of tasks.
+
+The investigation should establish:
+
+- The actual device, Android version, ABI, GPU and available Vulkan capabilities, using read-only ADB inspection.
+- Whether Mesa for Android Container and Turnip/Freedreno support the target Adreno 740 and the intended Arch ARM64 environment.
+- Whether KGSL interfaces, device permissions, Android sandbox restrictions and SELinux permit the intended graphics path.
+- Whether a Linux process inside PRoot can initialize Vulkan.
+- Whether that process can render and present frames through a usable Android display path.
+- Whether Android `Surface`/`SurfaceView`, JNI/NDK integration, IPC or a Linux display server is actually necessary.
+- Whether a minimal Wine/Hangover + DXVK test can render a Windows application once the Vulkan path is validated.
+- Whether VKD3D-Proton is viable for a separate Direct3D 12 test.
+
+Relevant upstream references:
+
+- Mesa for Android Container: https://github.com/lfdevs/mesa-for-android-container
+- Winlator: https://github.com/winebox64/winlator
+- DXVK: https://github.com/doitsujin/dxvk
+- VKD3D-Proton: https://gitlab.winehq.org/wine/vkd3d-proton
+
+Keep this investigation read-only initially: do not install packages on the phone, root it, flash it, change Android settings or modify source code as part of it.
+
+Record findings as `CONFIRMED`, `TESTED`, `LIKELY` or `UNKNOWN`. Do not claim that GPU acceleration works until the actual rendering path has been tested.
+
+### 6. CPU translation and Windows compatibility
+
+- Evaluate Box64, FEX and Hangover before committing to a translation engine.
+- Box64 executes x86-64 Linux ELF programs; it does not independently execute Windows PE applications.
+- Wine or a compatible Wine-based runtime is required for Windows API compatibility.
+- Do not assume that a Hangover or Wine bundle built for another Linux distribution works unchanged in Arch Linux ARM64.
+- Investigate runtime dependencies and compatibility before investing heavily in integration.
+
+### 7. Graphics and runtime dependencies
+
+- Do not prematurely commit to a specific driver, display server, graphics bridge or CPU translation engine before validating the required path.
+- Keep the Android app responsible for Android-specific functionality. Introduce native graphics integration only if testing demonstrates that it is necessary.
+- Prefer HTTPS downloads and official checksum/signature verification where available.
+
+**Environment facts the schedule assumes (verified):** Arch Linux, 8 cores, 15 GB RAM, 157 GB free. `adb`, `java`, `gradle` and cross-compilers were **not installed** at sprint start — that is H0.
 
 ---
 
