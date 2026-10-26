@@ -63,21 +63,21 @@ These are the architectural decisions for the prototype. Items marked *provision
 
 ### 1. Android application
 
-- MoWin is a standalone Android APK built with Kotlin and Jetpack Compose.
-- The application owns the UI, lifecycle, permissions, process execution, logging and diagnostics.
-- Use JNI/NDK only when native integration is genuinely required — in particular, only if the graphics investigation demonstrates a need.
+- MoWin is a standalone Android APK using Kotlin and Jetpack Compose.
+- The Android application manages the UI, lifecycle, permissions, process execution, logging and diagnostics.
+- Use JNI/NDK only when required for native integration, particularly if the graphics investigation demonstrates a need.
 
 ### 2. Self-contained Arch Linux ARM64 userspace
 
-- MoWin manages its own minimal Arch Linux ARM64 rootfs in app-private storage.
+- MoWin must manage its own minimal Arch Linux ARM64 rootfs in app-private storage.
 - It must not depend on a separately installed Termux environment.
-- Rootfs import, extraction, persistence, integrity and recovery remain part of the development plan (§4, H3).
+- Rootfs import, extraction, persistence, integrity and recovery remain part of the existing development plan.
 
 ### 3. PRoot is provisional
 
 - PRoot is the initial candidate for running the private rootfs on a non-rooted Android device.
-- Do not treat PRoot as a finalized architectural decision until its execution and graphics compatibility have been investigated.
-- PRoot grants no real root privileges and guarantees neither access to GPU device nodes nor to Android graphics interfaces.
+- Do not consider PRoot a finalized architectural decision until its execution and graphics compatibility have been investigated.
+- PRoot does not grant real root privileges and does not guarantee access to GPU device nodes or Android graphics interfaces.
 - Do not switch to chroot, LXC or a rooted-only design without evidence that the current approach cannot meet the requirements.
 
 ### 4. GPU-accelerated Windows rendering is a core requirement
@@ -86,9 +86,7 @@ Hardware-accelerated Windows rendering is one of MoWin's primary differentiators
 
 The initial candidate graphics pipeline is:
 
-```text
-Windows x86/x64 application → Wine/Hangover → DXVK or VKD3D-Proton → Vulkan → Mesa Turnip/Freedreno → Adreno 740
-```
+`Windows x86/x64 application → Wine/Hangover → DXVK or VKD3D-Proton → Vulkan → Mesa Turnip/Freedreno → Adreno 740`
 
 The target device is a Samsung Galaxy S23 with Snapdragon 8 Gen 2 and Adreno 740, running non-rooted Android.
 
@@ -99,21 +97,19 @@ This pipeline is a hypothesis, not a guarantee. In particular:
 - Successful Linux Vulkan rendering does not prove that a Windows application can render through Wine and DXVK.
 - Direct3D 12 through VKD3D-Proton must be assessed separately from Direct3D 9/10/11 through DXVK.
 
-For this 20-hour sprint, graphics work is limited to the read-only feasibility investigation in §5 below. The schedule in §4 is unchanged.
-
 ### 5. GPU compatibility investigation
 
-Use the existing hour-wise schedule in §4. Do not create additional hours or reorder the schedule. Where the existing tasks allow, investigate graphics feasibility as early as practical; this section defines what the investigation must establish, not a new set of tasks.
+Use the existing hour-wise schedule. **Do not create additional hours or reorder the schedule.** Within the existing tasks, prioritize investigating graphics feasibility as early as practical.
 
 The investigation should establish:
 
-- The actual device, Android version, ABI, GPU and available Vulkan capabilities, using read-only ADB inspection.
+- The actual device, Android version, ABI, GPU and available Vulkan capabilities using read-only ADB inspection.
 - Whether Mesa for Android Container and Turnip/Freedreno support the target Adreno 740 and the intended Arch ARM64 environment.
 - Whether KGSL interfaces, device permissions, Android sandbox restrictions and SELinux permit the intended graphics path.
 - Whether a Linux process inside PRoot can initialize Vulkan.
 - Whether that process can render and present frames through a usable Android display path.
 - Whether Android `Surface`/`SurfaceView`, JNI/NDK integration, IPC or a Linux display server is actually necessary.
-- Whether a minimal Wine/Hangover + DXVK test can render a Windows application once the Vulkan path is validated.
+- Whether a minimal Wine/Hangover + DXVK test can render a Windows application after the Vulkan path is validated.
 - Whether VKD3D-Proton is viable for a separate Direct3D 12 test.
 
 Relevant upstream references:
@@ -123,7 +119,7 @@ Relevant upstream references:
 - DXVK: https://github.com/doitsujin/dxvk
 - VKD3D-Proton: https://gitlab.winehq.org/wine/vkd3d-proton
 
-Keep this investigation read-only initially: do not install packages on the phone, root it, flash it, change Android settings or modify source code as part of it.
+Keep this investigation read-only initially. Do not install packages on the phone, root it, flash it, change Android settings or modify source code as part of the investigation.
 
 Record findings as `CONFIRMED`, `TESTED`, `LIKELY` or `UNKNOWN`. Do not claim that GPU acceleration works until the actual rendering path has been tested.
 
@@ -137,9 +133,11 @@ Record findings as `CONFIRMED`, `TESTED`, `LIKELY` or `UNKNOWN`. Do not claim th
 
 ### 7. Graphics and runtime dependencies
 
-- Do not prematurely commit to a specific driver, display server, graphics bridge or CPU translation engine before validating the required path.
-- Keep the Android app responsible for Android-specific functionality. Introduce native graphics integration only if testing demonstrates that it is necessary.
-- Prefer HTTPS downloads and official checksum/signature verification where available.
+Do not prematurely commit to a specific driver, display server, graphics bridge or CPU translation engine before validating the required path.
+
+Keep the Android app responsible for Android-specific functionality. Introduce native graphics integration only if testing demonstrates it is necessary.
+
+Prefer HTTPS downloads and official checksum/signature verification where available.
 
 **Environment facts the schedule assumes (verified):** Arch Linux, 8 cores, 15 GB RAM, 157 GB free. `adb`, `java`, `gradle` and cross-compilers were **not installed** at sprint start — that is H0.
 
