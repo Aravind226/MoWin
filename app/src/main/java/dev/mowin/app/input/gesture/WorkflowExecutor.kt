@@ -8,6 +8,9 @@ import java.util.Collections
  */
 interface InputBridge {
     suspend fun sendPointer(buttonMask: Int, x: Int, y: Int)
+    suspend fun sendPointerMove(buttonMask: Int, x: Int, y: Int) {
+        sendPointer(buttonMask, x, y)
+    }
     suspend fun sendKey(keySym: Int)
     suspend fun sendKeyDown(keySym: Int)
     suspend fun sendKeyUp(keySym: Int)
@@ -155,7 +158,7 @@ class WorkflowExecutor(private val bridge: InputBridge?) {
         lastX = x
         lastY = y
         if (!isTestMode && bridge != null && activeMouseMask != 0) {
-            bridge.sendPointer(activeMouseMask, x, y)
+            bridge.sendPointerMove(activeMouseMask, x, y)
         }
     }
 

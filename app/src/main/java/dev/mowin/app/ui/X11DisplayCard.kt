@@ -30,28 +30,47 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import dev.mowin.app.input.gesture.*
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.RandomAccessFile
 import java.net.Socket
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.nio.MappedByteBuffer
+import java.nio.channels.FileChannel
+import java.util.Arrays
 
 /**
  * Robust RFB (VNC) client implementing InputBridge for pointer and keyboard dispatch.
+ * Synchronized with a Mutex to guarantee ordered, atomic TCP packet writes,
+ * and a conflated channel for ultra-smooth 60-120Hz drag and pointer streaming without lag.
  */
 class VncInputClient : InputBridge {
     private var socket: Socket? = null
+    private val socketMutex = Mutex()
+    private val clientScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var workerJob: Job? = null
+    private var connected = false
 
-    suspend fun connect(): Boolean = withContext(Dispatchers.IO) {
+    private class PointerMove(val mask: Int, val x: Int, val y: Int)
+    private val pointerChannel = Channel<PointerMove>(capacity = Channel.CONFLATED)
+
+    private suspend fun internalConnect(): Boolean {
         try {
-            if (socket != null && !socket!!.isClosed) return@withContext true
+            if (socket != null && !socket!!.isClosed) return true
             val s = Socket("127.0.0.1", 5900)
             s.tcpNoDelay = true
+            s.sendBufferSize = 64 * 1024
             val input = s.getInputStream()
             val output = s.getOutputStream()
             val buf = ByteArray(1024)
@@ -66,82 +85,129 @@ class VncInputClient : InputBridge {
             input.read(buf, 0, 24)      // ServerInit
 
             socket = s
-            true
+            connected = true
+
+            // Start conflated pointer streaming worker
+            workerJob?.cancel()
+            workerJob = clientScope.launch {
+                for (move in pointerChannel) {
+                    if (!connected) break
+                    sendPointerInternal(move.mask, move.x, move.y)
+                }
+            }
+
+            return true
         } catch (e: Exception) {
             socket = null
-            false
+            connected = false
+            return false
+        }
+    }
+
+    suspend fun connect(): Boolean = withContext(Dispatchers.IO) {
+        socketMutex.withLock { internalConnect() }
+    }
+
+    private suspend fun sendPointerInternal(buttonMask: Int, x: Int, y: Int) {
+        socketMutex.withLock {
+            try {
+                if (socket == null || socket!!.isClosed) {
+                    if (!internalConnect()) return@withLock
+                }
+                val clampedX = x.coerceIn(0, 1279)
+                val clampedY = y.coerceIn(0, 719)
+                val packet = byteArrayOf(
+                    5, // PointerEvent
+                    buttonMask.toByte(),
+                    (clampedX ushr 8).toByte(),
+                    (clampedX and 0xFF).toByte(),
+                    (clampedY ushr 8).toByte(),
+                    (clampedY and 0xFF).toByte(),
+                )
+                socket?.getOutputStream()?.apply {
+                    write(packet)
+                    flush()
+                }
+            } catch (e: Exception) {
+                try { socket?.close() } catch (e: Exception) {}
+                socket = null
+                connected = false
+            }
+        }
+    }
+
+    override suspend fun sendPointerMove(buttonMask: Int, x: Int, y: Int) {
+        if (connected) {
+            pointerChannel.trySend(PointerMove(buttonMask, x, y))
+        } else {
+            sendPointerInternal(buttonMask, x, y)
         }
     }
 
     override suspend fun sendPointer(buttonMask: Int, x: Int, y: Int) = withContext(Dispatchers.IO) {
-        try {
-            if (socket == null || socket!!.isClosed) {
-                if (!connect()) return@withContext
-            }
-            val clampedX = x.coerceIn(0, 1279)
-            val clampedY = y.coerceIn(0, 719)
-            val packet = byteArrayOf(
-                5, // PointerEvent
-                buttonMask.toByte(),
-                (clampedX ushr 8).toByte(),
-                (clampedX and 0xFF).toByte(),
-                (clampedY ushr 8).toByte(),
-                (clampedY and 0xFF).toByte(),
-            )
-            socket?.getOutputStream()?.apply {
-                write(packet)
-                flush()
-            }
-        } catch (e: Exception) {
-            try { socket?.close() } catch (e: Exception) {}
-            socket = null
-        }
+        sendPointerInternal(buttonMask, x, y)
     }
 
     override suspend fun sendKeyDown(keySym: Int) = withContext(Dispatchers.IO) {
-        try {
-            if (socket == null || socket!!.isClosed) {
-                if (!connect()) return@withContext
+        socketMutex.withLock {
+            try {
+                if (socket == null || socket!!.isClosed) {
+                    if (!internalConnect()) return@withLock
+                }
+                val out = socket?.getOutputStream() ?: return@withLock
+                val downPkt = byteArrayOf(
+                    4, // KeyEvent
+                    1, // Down
+                    0, 0,
+                    (keySym ushr 24).toByte(),
+                    (keySym ushr 16).toByte(),
+                    (keySym ushr 8).toByte(),
+                    (keySym and 0xFF).toByte(),
+                )
+                out.write(downPkt)
+                out.flush()
+            } catch (e: Exception) {
+                try { socket?.close() } catch (e: Exception) {}
+                socket = null
+                connected = false
             }
-            val out = socket?.getOutputStream() ?: return@withContext
-            val downPkt = byteArrayOf(
-                4, // KeyEvent
-                1, // Down
-                0, 0,
-                (keySym ushr 24).toByte(),
-                (keySym ushr 16).toByte(),
-                (keySym ushr 8).toByte(),
-                (keySym and 0xFF).toByte(),
-            )
-            out.write(downPkt)
-            out.flush()
-        } catch (e: Exception) {
-            try { socket?.close() } catch (e: Exception) {}
-            socket = null
         }
     }
 
     override suspend fun sendKeyUp(keySym: Int) = withContext(Dispatchers.IO) {
-        try {
-            if (socket == null || socket!!.isClosed) {
-                if (!connect()) return@withContext
+        socketMutex.withLock {
+            try {
+                if (socket == null || socket!!.isClosed) {
+                    if (!internalConnect()) return@withLock
+                }
+                val out = socket?.getOutputStream() ?: return@withLock
+                val upPkt = byteArrayOf(
+                    4, // KeyEvent
+                    0, // Up
+                    0, 0,
+                    (keySym ushr 24).toByte(),
+                    (keySym ushr 16).toByte(),
+                    (keySym ushr 8).toByte(),
+                    (keySym and 0xFF).toByte(),
+                )
+                out.write(upPkt)
+                out.flush()
+            } catch (e: Exception) {
+                try { socket?.close() } catch (e: Exception) {}
+                socket = null
+                connected = false
             }
-            val out = socket?.getOutputStream() ?: return@withContext
-            val upPkt = byteArrayOf(
-                4, // KeyEvent
-                0, // Up
-                0, 0,
-                (keySym ushr 24).toByte(),
-                (keySym ushr 16).toByte(),
-                (keySym ushr 8).toByte(),
-                (keySym and 0xFF).toByte(),
-            )
-            out.write(upPkt)
-            out.flush()
-        } catch (e: Exception) {
-            try { socket?.close() } catch (e: Exception) {}
-            socket = null
         }
+    }
+
+    fun disconnect() {
+        connected = false
+        workerJob?.cancel()
+        workerJob = null
+        try {
+            socket?.close()
+        } catch (ignored: Exception) {}
+        socket = null
     }
 
     override suspend fun sendKey(keySym: Int) = withContext(Dispatchers.IO) {
@@ -219,7 +285,13 @@ fun X11DisplayCard(
 
     val fbFile = remember(rootfsDir) { File(rootfsDir, "tmp/Xvfb_screen0") }
 
-    // Live Framebuffer Reader Loop
+    DisposableEffect(Unit) {
+        onDispose {
+            vncClient.disconnect()
+        }
+    }
+
+    // Live Framebuffer Reader Loop: double-buffered zero-allocation 60 FPS streamer
     LaunchedEffect(rootfsDir) {
         withContext(Dispatchers.IO) {
             val width = 1280
@@ -228,44 +300,101 @@ fun X11DisplayCard(
             val headerSize = 3232L
             val byteCount = pixelCount * 4
 
+            // Pre-allocated reusable buffers (zero allocations in loop)
             val rawBuffer = ByteBuffer.allocateDirect(byteCount).order(ByteOrder.LITTLE_ENDIAN)
+            val rawInts = IntArray(pixelCount)
+            val prevInts = IntArray(pixelCount)
             val pixelInts = IntArray(pixelCount)
 
-            var lastMtime = 0L
+            // Double buffering Bitmaps to completely eliminate GC pressure
+            val bmpA = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val bmpB = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            var useA = true
 
-            while (isActive) {
-                if (fbFile.exists() && fbFile.length() >= headerSize + byteCount) {
-                    isDisplayActive = true
-                    val currentMtime = fbFile.lastModified()
-                    if (currentMtime != lastMtime || displayBitmap == null) {
+            var raf: RandomAccessFile? = null
+            var channel: FileChannel? = null
+            var mappedBuf: MappedByteBuffer? = null
+            var lastLength = 0L
+
+            try {
+                while (isActive) {
+                    if (fbFile.exists() && fbFile.length() >= headerSize + byteCount) {
+                        isDisplayActive = true
+                        val curLen = fbFile.length()
                         try {
-                            RandomAccessFile(fbFile, "r").use { raf ->
-                                raf.seek(headerSize)
-                                rawBuffer.clear()
-                                val channel = raf.channel
-                                channel.read(rawBuffer)
-                                rawBuffer.flip()
-                                val intBuffer = rawBuffer.asIntBuffer()
+                            if (raf == null || channel == null || !channel.isOpen || curLen != lastLength) {
+                                try { channel?.close() } catch (ignored: Exception) {}
+                                try { raf?.close() } catch (ignored: Exception) {}
+                                raf = RandomAccessFile(fbFile, "r")
+                                channel = raf.channel
+                                lastLength = curLen
+                                mappedBuf = try {
+                                    channel.map(FileChannel.MapMode.READ_ONLY, headerSize, byteCount.toLong())
+                                        .order(ByteOrder.LITTLE_ENDIAN) as? MappedByteBuffer
+                                } catch (e: Exception) {
+                                    null
+                                }
+                            }
 
+                            if (mappedBuf != null) {
+                                mappedBuf.position(0)
+                                val intBuf = mappedBuf.asIntBuffer()
+                                intBuf.get(rawInts)
+                            } else {
+                                channel!!.position(headerSize)
+                                rawBuffer.clear()
+                                var bytesRead = 0
+                                while (bytesRead < byteCount && channel!!.isOpen) {
+                                    val r = channel!!.read(rawBuffer)
+                                    if (r < 0) break
+                                    bytesRead += r
+                                }
+                                if (bytesRead >= byteCount) {
+                                    rawBuffer.flip()
+                                    val intBuf = rawBuffer.asIntBuffer()
+                                    intBuf.get(rawInts)
+                                }
+                            }
+
+                            // Compare with previous frame - only convert & redraw if pixels changed
+                            val changed = !Arrays.equals(rawInts, prevInts)
+                            if (changed) {
+                                // Fast native conversion from Xvfb 32-bit BGRX to Android ARGB
                                 for (i in 0 until pixelCount) {
-                                    val p = intBuffer.get()
-                                    // Xvfb BGRX -> Android ARGB: swap red and blue channels
+                                    val p = rawInts[i]
                                     pixelInts[i] = 0xFF000000.toInt() or
                                             ((p and 0xFF) shl 16) or
                                             (p and 0xFF00) or
                                             ((p ushr 16) and 0xFF)
                                 }
-                                displayBitmap = Bitmap.createBitmap(pixelInts, width, height, Bitmap.Config.ARGB_8888)
-                                lastMtime = currentMtime
+                                System.arraycopy(rawInts, 0, prevInts, 0, pixelCount)
+
+                                val targetBmp = if (useA) bmpA else bmpB
+                                targetBmp.setPixels(pixelInts, 0, width, 0, 0, width, height)
+                                displayBitmap = targetBmp
+                                useA = !useA
                             }
                         } catch (e: Exception) {
-                            android.util.Log.e("X11Display", "Read fb error", e)
+                            try { channel?.close() } catch (ignored: Exception) {}
+                            try { raf?.close() } catch (ignored: Exception) {}
+                            channel = null
+                            raf = null
+                            mappedBuf = null
                         }
+                        delay(16) // ~60 FPS smooth rendering
+                    } else {
+                        isDisplayActive = false
+                        try { channel?.close() } catch (ignored: Exception) {}
+                        try { raf?.close() } catch (ignored: Exception) {}
+                        channel = null
+                        raf = null
+                        mappedBuf = null
+                        delay(200) // Idle sleep waiting for display
                     }
-                } else {
-                    isDisplayActive = false
                 }
-                delay(33) // ~30 FPS refresh
+            } finally {
+                try { channel?.close() } catch (ignored: Exception) {}
+                try { raf?.close() } catch (ignored: Exception) {}
             }
         }
     }
@@ -325,10 +454,16 @@ fun X11DisplayCard(
             }
         }
 
-        Box(
-            modifier = modifier
+        val surfaceModifier = if (isDisplayActive) {
+            modifier
                 .onSizeChanged { surfaceSize = it }
-                .detectMoWinGestures(gestureListener),
+                .detectMoWinGestures(gestureListener)
+        } else {
+            modifier.onSizeChanged { surfaceSize = it }
+        }
+
+        Box(
+            modifier = surfaceModifier,
             contentAlignment = Alignment.Center,
         ) {
             val bmp = displayBitmap

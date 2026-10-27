@@ -37,6 +37,7 @@ object ProotLauncher {
         command: List<String>,
     ): List<String> = listOf(
         prootPath,
+        "--kill-on-exit",
         "--link2symlink", "-0",
         "-r", rootfsPath,
         "-b", "/dev", "-b", "/proc", "-b", "/sys",
@@ -53,6 +54,10 @@ object ProotLauncher {
         "WINESERVER=/opt/hangover/bin/wineserver",
         "LD_LIBRARY_PATH=/opt/hangover/lib/wine/aarch64-unix:/usr/local/lib:/usr/lib",
         "VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/freedreno_icd.aarch64.json",
+        "GALLIUM_DRIVER=llvmpipe",
+        "LP_NUM_THREADS=4",
+        "MESA_GL_VERSION_OVERRIDE=3.3",
+        "MESA_GLSL_VERSION_OVERRIDE=330",
         "WINEDEBUG=-all",
     ) + command
 }

@@ -154,12 +154,13 @@ fun RuntimeScreen(
                     },
                     onKillWine = {
                         scope.launch(Dispatchers.IO) {
-                            scope.launch(Dispatchers.Main) { out += "> killall wineserver\n" }
+                            scope.launch(Dispatchers.Main) { out += "> Terminating Wine, CAD, and X11 processes...\n" }
+                            dev.mowin.app.runtime.RuntimeProcessManager.killAllRuntimeProcesses(context)
                             executeCommand(
                                 context = context,
                                 paths = paths,
                                 runner = runner,
-                                command = "killall -9 wineserver notepad.exe winemine.exe explorer.exe 2>/dev/null || true",
+                                command = "killall -9 wineserver notepad.exe winemine.exe explorer.exe solvespace.exe solvespace_sc.exe Xvfb x11vnc 2>/dev/null || true",
                                 onLine = { line -> scope.launch(Dispatchers.Main) { out += "$line\n" } },
                                 onFinish = { exit -> scope.launch(Dispatchers.Main) { out += "kill exit=$exit\n" } },
                             )
@@ -187,7 +188,9 @@ fun RuntimeScreen(
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier
                             .fillMaxWidth()
+                            .heightIn(max = 200.dp)
                             .background(Color(0xFF0A0E14))
+                            .verticalScroll(rememberScrollState())
                             .padding(12.dp),
                     )
                     Spacer(modifier = Modifier.height(8.dp))
