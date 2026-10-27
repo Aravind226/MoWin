@@ -18,6 +18,7 @@ class GestureProfileManager(private val context: Context) {
         const val DEFAULT_PROFILE_ID = "profile_default_desktop"
         const val CAD_PROFILE_ID = "profile_cad"
         const val PRODUCTIVITY_PROFILE_ID = "profile_productivity"
+        const val STEAM_GAMING_PROFILE_ID = "profile_steam_gaming"
 
         fun createBuiltInProfiles(): List<GestureProfile> = listOf(
             GestureProfile(
@@ -108,6 +109,39 @@ class GestureProfileManager(private val context: Context) {
                     TouchGestureType.TWO_FINGER_DRAG to GestureActionConfig(
                         actionType = ActionType.KEY_SHORTCUT,
                         shortcutId = "CTRL_S",
+                    ),
+                )
+            ),
+            GestureProfile(
+                id = STEAM_GAMING_PROFILE_ID,
+                name = "Steam & Gaming",
+                isReadOnly = false,
+                mappings = mapOf(
+                    TouchGestureType.SINGLE_TAP to GestureActionConfig(
+                        actionType = ActionType.MOUSE_CLICK,
+                        mouseButton = MouseButton.LEFT,
+                    ),
+                    TouchGestureType.LONG_PRESS to GestureActionConfig(
+                        actionType = ActionType.MOUSE_CLICK,
+                        mouseButton = MouseButton.RIGHT,
+                    ),
+                    TouchGestureType.TWO_FINGER_TAP to GestureActionConfig(
+                        actionType = ActionType.KEY_SHORTCUT,
+                        shortcutId = "ESCAPE",
+                    ),
+                    TouchGestureType.ONE_FINGER_DRAG to GestureActionConfig(
+                        actionType = ActionType.MOUSE_DRAG,
+                        mouseButton = MouseButton.LEFT,
+                    ),
+                    TouchGestureType.TWO_FINGER_DRAG to GestureActionConfig(
+                        actionType = ActionType.MOUSE_CLICK,
+                        mouseButton = MouseButton.WHEEL_DOWN,
+                        customLabel = "Scroll Down",
+                    ),
+                    TouchGestureType.PINCH_ZOOM to GestureActionConfig(
+                        actionType = ActionType.MOUSE_CLICK,
+                        mouseButton = MouseButton.WHEEL_UP,
+                        customLabel = "Scroll Up",
                     ),
                 )
             )

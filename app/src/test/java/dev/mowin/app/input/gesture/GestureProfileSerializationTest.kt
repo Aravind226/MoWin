@@ -8,7 +8,7 @@ class GestureProfileSerializationTest {
     @Test
     fun testSerializationAndDeserializationRoundtrip() {
         val builtIns = GestureProfileManager.createBuiltInProfiles()
-        assertEquals(3, builtIns.size)
+        assertEquals(4, builtIns.size)
 
         // Modify one mapping in default profile
         val modified = builtIns[0].copyWithMapping(
@@ -19,7 +19,7 @@ class GestureProfileSerializationTest {
             )
         )
 
-        val profilesToTest = listOf(modified, builtIns[1], builtIns[2])
+        val profilesToTest = listOf(modified, builtIns[1], builtIns[2], builtIns[3])
 
         // Mock manager serializer
         val dummyManager = GestureProfileManagerFake()
@@ -28,9 +28,10 @@ class GestureProfileSerializationTest {
         assertTrue(json.contains("CAD_ZOOM_EXTENTS"))
         assertTrue(json.contains("Default Desktop"))
         assertTrue(json.contains("CAD Workstation"))
+        assertTrue(json.contains("Steam & Gaming"))
 
         val deserialized = dummyManager.deserializeProfiles(json)
-        assertEquals(3, deserialized.size)
+        assertEquals(4, deserialized.size)
 
         val roundtripDefault = deserialized.first { it.id == GestureProfileManager.DEFAULT_PROFILE_ID }
         val roundtripMapping = roundtripDefault.mappings[TouchGestureType.TWO_FINGER_TAP]

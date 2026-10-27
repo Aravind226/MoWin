@@ -152,15 +152,28 @@ fun RuntimeScreen(
                             )
                         }
                     },
+                    onLaunchSteam = {
+                        scope.launch(Dispatchers.IO) {
+                            scope.launch(Dispatchers.Main) { out += "> wine Steam (Installer / Client)\n" }
+                            executeCommand(
+                                context = context,
+                                paths = paths,
+                                runner = runner,
+                                command = "/usr/local/bin/mowin-steam",
+                                onLine = { line -> scope.launch(Dispatchers.Main) { out += "$line\n" } },
+                                onFinish = { exit -> scope.launch(Dispatchers.Main) { out += "steam exit=$exit\n" } },
+                            )
+                        }
+                    },
                     onKillWine = {
                         scope.launch(Dispatchers.IO) {
-                            scope.launch(Dispatchers.Main) { out += "> Terminating Wine, CAD, and X11 processes...\n" }
+                            scope.launch(Dispatchers.Main) { out += "> Terminating Wine, CAD, Steam, and X11 processes...\n" }
                             dev.mowin.app.runtime.RuntimeProcessManager.killAllRuntimeProcesses(context)
                             executeCommand(
                                 context = context,
                                 paths = paths,
                                 runner = runner,
-                                command = "killall -9 wineserver notepad.exe winemine.exe explorer.exe solvespace.exe solvespace_sc.exe Xvfb x11vnc 2>/dev/null || true",
+                                command = "killall -9 wineserver notepad.exe winemine.exe explorer.exe solvespace.exe solvespace_sc.exe steam.exe steamwebhelper.exe SteamSetup.exe Xvfb x11vnc 2>/dev/null || true",
                                 onLine = { line -> scope.launch(Dispatchers.Main) { out += "$line\n" } },
                                 onFinish = { exit -> scope.launch(Dispatchers.Main) { out += "kill exit=$exit\n" } },
                             )

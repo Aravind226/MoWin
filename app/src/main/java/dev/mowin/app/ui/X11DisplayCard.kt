@@ -267,6 +267,7 @@ fun X11DisplayCard(
     onLaunchNotepad: () -> Unit,
     onLaunchWinemine: () -> Unit,
     onLaunchCad: () -> Unit = {},
+    onLaunchSteam: () -> Unit = {},
     onStartDisplay: () -> Unit,
     onKillWine: () -> Unit,
     modifier: Modifier = Modifier,
@@ -741,6 +742,15 @@ fun X11DisplayCard(
                                 Text("📐 CAD", fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                             }
 
+                            FilledTonalButton(
+                                onClick = onLaunchSteam,
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                            ) {
+                                Text("🎮 Steam", fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                            }
+
                             // Quick CAD actions in fullscreen
                             FilledTonalButton(
                                 onClick = {
@@ -870,6 +880,14 @@ fun X11DisplayCard(
                                 colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
                             ) {
                                 Text("📐 CAD", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            FilledTonalButton(
+                                onClick = onLaunchSteam,
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                            ) {
+                                Text("🎮 Steam", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
 
                             // Quick CAD actions in fullscreen
@@ -1108,11 +1126,19 @@ fun X11DisplayCard(
                 }
                 FilledTonalButton(
                     onClick = onLaunchCad,
-                    modifier = Modifier.weight(1.2f),
+                    modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
                     colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
                 ) {
                     Text("📐 CAD", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                }
+                FilledTonalButton(
+                    onClick = onLaunchSteam,
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                ) {
+                    Text("🎮 Steam", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                 }
                 OutlinedButton(
                     onClick = onKillWine,

@@ -1,0 +1,54 @@
+#!/bin/bash
+# MoWin Steam Launcher & Setup
+# Supports both installer execution and installed Steam client execution
+
+export GALLIUM_DRIVER=llvmpipe
+export LP_NUM_THREADS=4
+export MESA_GL_VERSION_OVERRIDE=3.3
+export MESA_GLSL_VERSION_OVERRIDE=330
+
+/usr/local/bin/mowin-display
+killall -9 notepad.exe winemine.exe solvespace.exe solvespace_sc.exe steam.exe steamwebhelper.exe SteamSetup.exe 2>/dev/null || true
+sleep 0.3
+
+# Check if Steam is already installed
+STEAM_EXE=""
+for candidate in \
+    "/root/.wine/drive_c/Program Files (x86)/Steam/steam.exe" \
+    "/root/.wine/drive_c/Steam/steam.exe" \
+    "/opt/steam/steam.exe"; do
+    if [ -f "$candidate" ]; then
+        STEAM_EXE="$candidate"
+        break
+    fi
+done
+
+if [ -n "$STEAM_EXE" ]; then
+    echo "MoWin: Launching installed Steam client (-no-cef-sandbox)..."
+    exec wine explorer.exe /desktop=shell,1280x720 "$STEAM_EXE" -no-cef-sandbox -silent
+fi
+
+echo "MoWin: Steam not installed yet. Preparing Steam installer..."
+mkdir -p /opt/steam 2>/dev/null || true
+
+# Look for installer in /opt/steam, host Downloads, or download it
+INSTALLER="/opt/steam/SteamSetup.exe"
+if [ ! -f "$INSTALLER" ]; then
+    if [ -f "/mnt/host/SteamSetup.exe" ]; then
+        cp "/mnt/host/SteamSetup.exe" "$INSTALLER"
+    elif [ -f "/mnt/host/Download/SteamSetup.exe" ]; then
+        cp "/mnt/host/Download/SteamSetup.exe" "$INSTALLER"
+    elif command -v curl >/dev/null 2>&1; then
+        echo "MoWin: Downloading official Steam installer..."
+        curl -sSL -k "https://cdn.cloudflare.steamstatic.com/client/installer/SteamSetup.exe" -o "$INSTALLER" || true
+    fi
+fi
+
+if [ -f "$INSTALLER" ]; then
+    echo "MoWin: Launching Steam Windows Setup..."
+    exec wine explorer.exe /desktop=shell,1280x720 "$INSTALLER"
+else
+    echo "Error: SteamSetup.exe not found."
+    echo "Please download SteamSetup.exe into your Android Downloads folder."
+    exit 1
+fi

@@ -19,6 +19,9 @@ object RuntimeProcessManager {
         "solvespace_x86.exe",
         "notepad.exe",
         "winemine.exe",
+        "steam.exe",
+        "steamwebhelper.exe",
+        "SteamSetup.exe",
         "explorer.exe",
         "wineserver",
         "wine",
@@ -47,7 +50,7 @@ object RuntimeProcessManager {
         // 1. Direct killall & pkill targeting Wine, X11, CAD, and emulation daemons
         try {
             val targets = PROCESS_TARGETS.joinToString(" ")
-            val cmd = "killall -9 $targets 2>/dev/null; pkill -9 -f \"solvespace|notepad|winemine|wineserver|wine64|wineboot|services\\.exe|winedevice\\.exe|explorer\\.exe|Xvfb|x11vnc|proot|box64\" 2>/dev/null || true"
+            val cmd = "killall -9 $targets 2>/dev/null; pkill -9 -f \"solvespace|notepad|winemine|steam|SteamSetup|wineserver|wine64|wineboot|services\\.exe|winedevice\\.exe|explorer\\.exe|Xvfb|x11vnc|proot|box64\" 2>/dev/null || true"
             val proc = Runtime.getRuntime().exec(arrayOf("/system/bin/sh", "-c", cmd))
             proc.waitFor()
             Log.i(TAG, "killall and pkill executed for runtime processes.")
