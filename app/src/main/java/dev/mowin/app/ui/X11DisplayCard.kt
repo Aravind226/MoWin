@@ -1,5 +1,6 @@
 package dev.mowin.app.ui
 
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -10,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -269,6 +272,9 @@ fun X11DisplayCard(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    var panelOnLeft by remember { mutableStateOf(false) }
     val vncClient = remember { VncInputClient() }
     val profileManager = remember(context) { GestureProfileManager(context) }
     var activeProfile by remember { mutableStateOf(profileManager.getActiveProfile()) }
@@ -310,6 +316,7 @@ fun X11DisplayCard(
             val bmpA = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
             val bmpB = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
             var useA = true
+            var isFirstFrame = true
 
             var raf: RandomAccessFile? = null
             var channel: FileChannel? = null
@@ -357,8 +364,9 @@ fun X11DisplayCard(
                             }
 
                             // Compare with previous frame - only convert & redraw if pixels changed
-                            val changed = !Arrays.equals(rawInts, prevInts)
+                            val changed = isFirstFrame || !Arrays.equals(rawInts, prevInts)
                             if (changed) {
+                                isFirstFrame = false
                                 // Fast native conversion from Xvfb 32-bit BGRX to Android ARGB
                                 for (i in 0 until pixelCount) {
                                     val p = rawInts[i]
@@ -384,6 +392,8 @@ fun X11DisplayCard(
                         delay(16) // ~60 FPS smooth rendering
                     } else {
                         isDisplayActive = false
+                        displayBitmap = null
+                        isFirstFrame = true
                         try { channel?.close() } catch (ignored: Exception) {}
                         try { raf?.close() } catch (ignored: Exception) {}
                         channel = null
@@ -454,7 +464,7 @@ fun X11DisplayCard(
             }
         }
 
-        val surfaceModifier = if (isDisplayActive) {
+        val surfaceModifier = if (isDisplayActive && displayBitmap != null) {
             modifier
                 .onSizeChanged { surfaceSize = it }
                 .detectMoWinGestures(gestureListener)
@@ -605,141 +615,331 @@ fun X11DisplayCard(
                     modifier = Modifier.fillMaxSize(),
                 )
 
-                // Floating Top Control Bar with pinned Close button
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 32.dp, start = 8.dp, end = 8.dp)
-                        .background(Color(0xCC1A1F26), RoundedCornerShape(20.dp))
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
-                        .align(Alignment.TopCenter),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Row(
+                if (isLandscape) {
+                    // Floating Side Panel in Landscape pinned to side
+                    Column(
                         modifier = Modifier
-                            .weight(1f)
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                            .align(if (panelOnLeft) Alignment.CenterStart else Alignment.CenterEnd)
+                            .fillMaxHeight()
+                            .padding(
+                                start = if (panelOnLeft) 10.dp else 0.dp,
+                                end = if (!panelOnLeft) 10.dp else 0.dp,
+                                top = 8.dp,
+                                bottom = 8.dp,
+                            )
+                            .width(86.dp)
+                            .background(Color(0xDD1A1F26), RoundedCornerShape(16.dp))
+                            .padding(horizontal = 6.dp, vertical = 6.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        // Mode Toggle (Left vs Right Click)
-                        FilterChip(
-                            selected = isRightClickMode,
-                            onClick = { isRightClickMode = !isRightClickMode },
-                            label = {
+                        // Header with Side Switcher & Close button
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            FilledTonalButton(
+                                onClick = { panelOnLeft = !panelOnLeft },
+                                contentPadding = PaddingValues(0.dp),
+                                modifier = Modifier.size(34.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF263238)),
+                            ) {
+                                Text("⇄", fontSize = 14.sp, color = Color.White)
+                            }
+                            FilledTonalButton(
+                                onClick = { isFullscreen = false },
+                                contentPadding = PaddingValues(0.dp),
+                                modifier = Modifier.size(34.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFFE53935)),
+                            ) {
+                                Text("✕", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF37474F)))
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        val sideScrollState = rememberScrollState()
+                        LaunchedEffect(isLandscape) {
+                            sideScrollState.scrollTo(0)
+                        }
+
+                        // Scrollable components on the side
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .verticalScroll(sideScrollState),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            // Left / Right Click Toggle
+                            FilledTonalButton(
+                                onClick = { isRightClickMode = !isRightClickMode },
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp),
+                                colors = if (isRightClickMode) {
+                                    ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+                                } else {
+                                    ButtonDefaults.filledTonalButtonColors()
+                                },
+                            ) {
                                 Text(
                                     if (isRightClickMode) "🚩 Right" else "🖱 Left",
-                                    fontSize = 11.sp,
+                                    fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
                                 )
-                            },
-                        )
+                            }
 
-                        // Gestures Editor Button
-                        FilledTonalButton(
-                            onClick = { showGestureEditor = true },
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                        ) {
-                            Text("⚙ Gestures", fontSize = 11.sp)
-                        }
+                            // Gestures Editor Button
+                            FilledTonalButton(
+                                onClick = { showGestureEditor = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp),
+                            ) {
+                                Text("⚙ Gestures", fontSize = 10.sp, maxLines = 1)
+                            }
 
-                        // Keyboard Toggle
-                        FilterChip(
-                            selected = isKeyboardOpen,
-                            onClick = { isKeyboardOpen = !isKeyboardOpen },
-                            label = { Text("⌨ Keys", fontSize = 11.sp) },
-                        )
+                            // Keyboard Toggle
+                            FilledTonalButton(
+                                onClick = { isKeyboardOpen = !isKeyboardOpen },
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp),
+                                colors = if (isKeyboardOpen) {
+                                    ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                                } else {
+                                    ButtonDefaults.filledTonalButtonColors()
+                                },
+                            ) {
+                                Text("⌨ Keys", fontSize = 10.sp, maxLines = 1)
+                            }
 
-                        // Quick App Switchers
-                        FilledTonalButton(
-                            onClick = onLaunchNotepad,
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                        ) {
-                            Text("Notepad", fontSize = 11.sp)
-                        }
+                            // Quick App Switchers
+                            FilledTonalButton(
+                                onClick = onLaunchNotepad,
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp),
+                            ) {
+                                Text("Notepad", fontSize = 10.sp, maxLines = 1)
+                            }
 
-                        FilledTonalButton(
-                            onClick = onLaunchWinemine,
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                        ) {
-                            Text("Mines", fontSize = 11.sp)
-                        }
+                            FilledTonalButton(
+                                onClick = onLaunchWinemine,
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp),
+                            ) {
+                                Text("Mines", fontSize = 10.sp, maxLines = 1)
+                            }
 
-                        FilledTonalButton(
-                            onClick = onLaunchCad,
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                            colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                        ) {
-                            Text("📐 CAD", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
+                            FilledTonalButton(
+                                onClick = onLaunchCad,
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                            ) {
+                                Text("📐 CAD", fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                            }
 
-                        // Quick CAD actions in fullscreen
-                        FilledTonalButton(
-                            onClick = {
-                                scope.launch(Dispatchers.IO) {
-                                    workflowExecutor.executeAction(
-                                        GestureActionConfig(ActionType.KEY_SHORTCUT, shortcutId = "ESCAPE"),
-                                        0,
-                                        0,
-                                    )
-                                }
-                            },
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                            colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF37474F)),
-                        ) {
-                            Text("Esc", fontSize = 11.sp, color = Color.White)
-                        }
+                            // Quick CAD actions in fullscreen
+                            FilledTonalButton(
+                                onClick = {
+                                    scope.launch(Dispatchers.IO) {
+                                        workflowExecutor.executeAction(
+                                            GestureActionConfig(ActionType.KEY_SHORTCUT, shortcutId = "ESCAPE"),
+                                            0,
+                                            0,
+                                        )
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF37474F)),
+                            ) {
+                                Text("Esc", fontSize = 10.sp, color = Color.White, maxLines = 1)
+                            }
 
-                        FilledTonalButton(
-                            onClick = {
-                                scope.launch(Dispatchers.IO) {
-                                    workflowExecutor.executeAction(
-                                        GestureActionConfig(ActionType.KEY_SHORTCUT, shortcutId = "CTRL_Z"),
-                                        0,
-                                        0,
-                                    )
-                                }
-                            },
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                            colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF37474F)),
-                        ) {
-                            Text("↶ Undo", fontSize = 11.sp, color = Color.White)
-                        }
+                            FilledTonalButton(
+                                onClick = {
+                                    scope.launch(Dispatchers.IO) {
+                                        workflowExecutor.executeAction(
+                                            GestureActionConfig(ActionType.KEY_SHORTCUT, shortcutId = "CTRL_Z"),
+                                            0,
+                                            0,
+                                        )
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF37474F)),
+                            ) {
+                                Text("↶ Undo", fontSize = 10.sp, color = Color.White, maxLines = 1)
+                            }
 
-                        FilledTonalButton(
-                            onClick = {
-                                scope.launch(Dispatchers.IO) {
-                                    workflowExecutor.executeWheel(isZoomIn = true, x = 640, y = 360)
-                                }
-                            },
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                            colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF263238)),
-                        ) {
-                            Text("🔍+", fontSize = 11.sp, color = Color.White)
-                        }
+                            FilledTonalButton(
+                                onClick = {
+                                    scope.launch(Dispatchers.IO) {
+                                        workflowExecutor.executeWheel(isZoomIn = true, x = 640, y = 360)
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF263238)),
+                            ) {
+                                Text("🔍+", fontSize = 10.sp, color = Color.White, maxLines = 1)
+                            }
 
-                        FilledTonalButton(
-                            onClick = {
-                                scope.launch(Dispatchers.IO) {
-                                    workflowExecutor.executeWheel(isZoomIn = false, x = 640, y = 360)
-                                }
-                            },
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                            colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF263238)),
-                        ) {
-                            Text("🔍-", fontSize = 11.sp, color = Color.White)
+                            FilledTonalButton(
+                                onClick = {
+                                    scope.launch(Dispatchers.IO) {
+                                        workflowExecutor.executeWheel(isZoomIn = false, x = 640, y = 360)
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF263238)),
+                            ) {
+                                Text("🔍-", fontSize = 10.sp, color = Color.White, maxLines = 1)
+                            }
                         }
                     }
-
-                    Spacer(modifier = Modifier.width(6.dp))
-
-                    // Exit Fullscreen Button - Always pinned on the right
-                    FilledTonalButton(
-                        onClick = { isFullscreen = false },
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                        colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFFE53935)),
+                } else {
+                    // Floating Top Control Bar in Portrait with pinned Close button
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 32.dp, start = 8.dp, end = 8.dp)
+                            .background(Color(0xCC1A1F26), RoundedCornerShape(20.dp))
+                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                            .align(Alignment.TopCenter),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("✕", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            // Mode Toggle (Left vs Right Click)
+                            FilterChip(
+                                selected = isRightClickMode,
+                                onClick = { isRightClickMode = !isRightClickMode },
+                                label = {
+                                    Text(
+                                        if (isRightClickMode) "🚩 Right" else "🖱 Left",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                },
+                            )
+
+                            // Gestures Editor Button
+                            FilledTonalButton(
+                                onClick = { showGestureEditor = true },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                            ) {
+                                Text("⚙ Gestures", fontSize = 11.sp)
+                            }
+
+                            // Keyboard Toggle
+                            FilterChip(
+                                selected = isKeyboardOpen,
+                                onClick = { isKeyboardOpen = !isKeyboardOpen },
+                                label = { Text("⌨ Keys", fontSize = 11.sp) },
+                            )
+
+                            // Quick App Switchers
+                            FilledTonalButton(
+                                onClick = onLaunchNotepad,
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                            ) {
+                                Text("Notepad", fontSize = 11.sp)
+                            }
+
+                            FilledTonalButton(
+                                onClick = onLaunchWinemine,
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                            ) {
+                                Text("Mines", fontSize = 11.sp)
+                            }
+
+                            FilledTonalButton(
+                                onClick = onLaunchCad,
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                            ) {
+                                Text("📐 CAD", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            // Quick CAD actions in fullscreen
+                            FilledTonalButton(
+                                onClick = {
+                                    scope.launch(Dispatchers.IO) {
+                                        workflowExecutor.executeAction(
+                                            GestureActionConfig(ActionType.KEY_SHORTCUT, shortcutId = "ESCAPE"),
+                                            0,
+                                            0,
+                                        )
+                                    }
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF37474F)),
+                            ) {
+                                Text("Esc", fontSize = 11.sp, color = Color.White)
+                            }
+
+                            FilledTonalButton(
+                                onClick = {
+                                    scope.launch(Dispatchers.IO) {
+                                        workflowExecutor.executeAction(
+                                            GestureActionConfig(ActionType.KEY_SHORTCUT, shortcutId = "CTRL_Z"),
+                                            0,
+                                            0,
+                                        )
+                                    }
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF37474F)),
+                            ) {
+                                Text("↶ Undo", fontSize = 11.sp, color = Color.White)
+                            }
+
+                            FilledTonalButton(
+                                onClick = {
+                                    scope.launch(Dispatchers.IO) {
+                                        workflowExecutor.executeWheel(isZoomIn = true, x = 640, y = 360)
+                                    }
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF263238)),
+                            ) {
+                                Text("🔍+", fontSize = 11.sp, color = Color.White)
+                            }
+
+                            FilledTonalButton(
+                                onClick = {
+                                    scope.launch(Dispatchers.IO) {
+                                        workflowExecutor.executeWheel(isZoomIn = false, x = 640, y = 360)
+                                    }
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF263238)),
+                            ) {
+                                Text("🔍-", fontSize = 11.sp, color = Color.White)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        // Exit Fullscreen Button - Always pinned on the right
+                        FilledTonalButton(
+                            onClick = { isFullscreen = false },
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                            colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFFE53935)),
+                        ) {
+                            Text("✕", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
                     }
                 }
 
@@ -748,7 +948,11 @@ fun X11DisplayCard(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(12.dp)
+                            .padding(
+                                start = if (isLandscape && panelOnLeft) 96.dp else 12.dp,
+                                end = if (isLandscape && !panelOnLeft) 96.dp else 12.dp,
+                                bottom = 12.dp,
+                            )
                             .align(Alignment.BottomCenter),
                     ) {
                         KeyboardControlBar()

@@ -6,8 +6,8 @@ export MESA_GL_VERSION_OVERRIDE=3.3
 export MESA_GLSL_VERSION_OVERRIDE=330
 
 /usr/local/bin/mowin-display
-killall -9 notepad.exe winemine.exe solvespace.exe solvespace_sc.exe 2>/dev/null || true
-sleep 0.5
+killall -9 notepad.exe winemine.exe explorer.exe solvespace.exe solvespace_sc.exe 2>/dev/null || true
+sleep 0.3
 
 # Ensure sample models are in C:\samples
 mkdir -p /root/.wine/drive_c/samples 2>/dev/null || true
@@ -17,9 +17,9 @@ fi
 
 TARGET="${1:-C:\\samples\\esp32.slvs}"
 if [ -n "$1" ]; then
-    wine explorer.exe /desktop=shell,1280x720 /opt/cad/solvespace.exe "$1" &
+    exec wine explorer.exe /desktop=shell,1280x720 /opt/cad/solvespace.exe "$1"
 elif [ -f /root/.wine/drive_c/samples/esp32.slvs ]; then
-    wine explorer.exe /desktop=shell,1280x720 /opt/cad/solvespace.exe "C:\\samples\\esp32.slvs" &
+    exec wine explorer.exe /desktop=shell,1280x720 /opt/cad/solvespace.exe "C:\\samples\\esp32.slvs"
 else
-    wine explorer.exe /desktop=shell,1280x720 /opt/cad/solvespace.exe &
+    exec wine explorer.exe /desktop=shell,1280x720 /opt/cad/solvespace.exe
 fi

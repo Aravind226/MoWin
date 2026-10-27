@@ -37,7 +37,6 @@ object ProotLauncher {
         command: List<String>,
     ): List<String> = listOf(
         prootPath,
-        "--kill-on-exit",
         "--link2symlink", "-0",
         "-r", rootfsPath,
         "-b", "/dev", "-b", "/proc", "-b", "/sys",
