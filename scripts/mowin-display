@@ -1,0 +1,17 @@
+#!/bin/bash
+# MoWin Display Server Launcher
+# Uses xdpyinfo to verify X11 display health and cleanly recover stale locks
+
+if ! xdpyinfo -display :0 >/dev/null 2>&1; then
+    killall -9 Xvfb x11vnc 2>/dev/null || true
+    rm -f /tmp/.l2s* /tmp/.X*-lock /tmp/.X11-unix/X* /tmp/Xvfb_screen* 2>/dev/null || true
+    sleep 0.2
+    Xvfb :0 -screen 0 1280x720x24 -fbdir /tmp -ac +extension GLX +render -noreset &
+    sleep 1
+fi
+
+if ! pgrep -f x11vnc >/dev/null 2>&1; then
+    x11vnc -display :0 -forever -nopw -listen 127.0.0.1 -rfbport 5900 -shared -noshm -noxdamage -bg
+fi
+
+echo "MoWin Display Server ready on :0 (VNC: 127.0.0.1:5900)"

@@ -1,5 +1,6 @@
 package dev.mowin.app.ui
 
+import android.content.Context
 import android.os.Environment
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -21,6 +22,43 @@ import dev.mowin.app.runtime.RuntimeState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
+
+private suspend fun executeCommand(
+    context: Context,
+    paths: RuntimePaths?,
+    runner: ProcessRunner,
+    command: String,
+    onLine: (String) -> Unit,
+    onFinish: (Int) -> Unit,
+) {
+    val nativeLibDir = context.applicationInfo.nativeLibraryDir
+    val prootBin = File(nativeLibDir, "libproot.so")
+    val hasRootfs = paths != null && paths.isInitialized()
+
+    val (argv, env) = if (hasRootfs && prootBin.exists()) {
+        val downloadPath = Environment.getExternalStoragePublicDirectory(
+            Environment.DIRECTORY_DOWNLOADS,
+        ).absolutePath
+        val prArgv = ProotLauncher.buildCommand(
+            prootPath = prootBin.absolutePath,
+            rootfsPath = paths!!.rootfs.absolutePath,
+            nativeLibDir = nativeLibDir,
+            hostDownloadPath = downloadPath,
+            command = listOf("/bin/bash", "-c", command),
+        )
+        val prEnv = ProotLauncher.hostEnv(nativeLibDir, paths.tmp.absolutePath)
+        prArgv to prEnv
+    } else {
+        listOf("/bin/sh", "-c", command) to emptyMap()
+    }
+
+    val exit = runner.run(
+        argv = argv,
+        env = env,
+        onLine = onLine,
+    )
+    onFinish(exit)
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,6 +95,80 @@ fun RuntimeScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             StatusCard(snapshot = snapshot, state = state)
+
+            // Embedded Live Windows Display Surface
+            if (paths != null && paths.isInitialized()) {
+                X11DisplayCard(
+                    rootfsDir = paths.rootfs,
+                    onStartDisplay = {
+                        scope.launch(Dispatchers.IO) {
+                            scope.launch(Dispatchers.Main) { out += "> mowin-display\n" }
+                            executeCommand(
+                                context = context,
+                                paths = paths,
+                                runner = runner,
+                                command = "/usr/local/bin/mowin-display",
+                                onLine = { line -> scope.launch(Dispatchers.Main) { out += "$line\n" } },
+                                onFinish = { exit -> scope.launch(Dispatchers.Main) { out += "display exit=$exit\n" } },
+                            )
+                        }
+                    },
+                    onLaunchNotepad = {
+                        scope.launch(Dispatchers.IO) {
+                            scope.launch(Dispatchers.Main) { out += "> wine notepad.exe (Winlator Desktop)\n" }
+                            executeCommand(
+                                context = context,
+                                paths = paths,
+                                runner = runner,
+                                command = "/usr/local/bin/mowin-display; killall -9 notepad.exe winemine.exe 2>/dev/null || true; wine explorer.exe /desktop=shell,1280x720 notepad.exe",
+                                onLine = { line -> scope.launch(Dispatchers.Main) { out += "$line\n" } },
+                                onFinish = { exit -> scope.launch(Dispatchers.Main) { out += "notepad exit=$exit\n" } },
+                            )
+                        }
+                    },
+                    onLaunchWinemine = {
+                        scope.launch(Dispatchers.IO) {
+                            scope.launch(Dispatchers.Main) { out += "> wine winemine.exe (Winlator Desktop)\n" }
+                            executeCommand(
+                                context = context,
+                                paths = paths,
+                                runner = runner,
+                                command = "/usr/local/bin/mowin-display; killall -9 notepad.exe winemine.exe 2>/dev/null || true; wine explorer.exe /desktop=shell,1280x720 winemine.exe",
+                                onLine = { line -> scope.launch(Dispatchers.Main) { out += "$line\n" } },
+                                onFinish = { exit -> scope.launch(Dispatchers.Main) { out += "winemine exit=$exit\n" } },
+                            )
+                        }
+                    },
+                    onLaunchCad = {
+                        scope.launch(Dispatchers.IO) {
+                            scope.launch(Dispatchers.Main) { out += "> wine SolveSpace CAD (2D/3D Parametric)\n" }
+                            executeCommand(
+                                context = context,
+                                paths = paths,
+                                runner = runner,
+                                command = "/usr/local/bin/mowin-cad",
+                                onLine = { line -> scope.launch(Dispatchers.Main) { out += "$line\n" } },
+                                onFinish = { exit -> scope.launch(Dispatchers.Main) { out += "cad exit=$exit\n" } },
+                            )
+                        }
+                    },
+                    onKillWine = {
+                        scope.launch(Dispatchers.IO) {
+                            scope.launch(Dispatchers.Main) { out += "> killall wineserver\n" }
+                            executeCommand(
+                                context = context,
+                                paths = paths,
+                                runner = runner,
+                                command = "killall -9 wineserver notepad.exe winemine.exe explorer.exe 2>/dev/null || true",
+                                onLine = { line -> scope.launch(Dispatchers.Main) { out += "$line\n" } },
+                                onFinish = { exit -> scope.launch(Dispatchers.Main) { out += "kill exit=$exit\n" } },
+                            )
+                        }
+                    },
+                )
+            }
+
+            // Terminal Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -98,40 +210,23 @@ fun RuntimeScreen(
                                     isRunning = true
                                     out += "> $currentCmd\n"
                                     scope.launch(Dispatchers.IO) {
-                                        val nativeLibDir = context.applicationInfo.nativeLibraryDir
-                                        val prootBin = File(nativeLibDir, "libproot.so")
-                                        val hasRootfs = paths != null && paths.isInitialized()
-
-                                        val (argv, env) = if (hasRootfs && prootBin.exists()) {
-                                            val downloadPath = Environment.getExternalStoragePublicDirectory(
-                                                Environment.DIRECTORY_DOWNLOADS,
-                                            ).absolutePath
-                                            val prArgv = ProotLauncher.buildCommand(
-                                                prootPath = prootBin.absolutePath,
-                                                rootfsPath = paths!!.rootfs.absolutePath,
-                                                nativeLibDir = nativeLibDir,
-                                                hostDownloadPath = downloadPath,
-                                                command = listOf("/bin/bash", "-c", currentCmd),
-                                            )
-                                            val prEnv = ProotLauncher.hostEnv(nativeLibDir, paths.tmp.absolutePath)
-                                            prArgv to prEnv
-                                        } else {
-                                            listOf("/bin/sh", "-c", currentCmd) to emptyMap()
-                                        }
-
-                                        val exit = runner.run(
-                                            argv = argv,
-                                            env = env,
+                                        executeCommand(
+                                            context = context,
+                                            paths = paths,
+                                            runner = runner,
+                                            command = currentCmd,
                                             onLine = { line ->
                                                 scope.launch(Dispatchers.Main) {
                                                     out += "$line\n"
                                                 }
                                             },
+                                            onFinish = { exit ->
+                                                scope.launch(Dispatchers.Main) {
+                                                    out += "exit=$exit\n"
+                                                    isRunning = false
+                                                }
+                                            },
                                         )
-                                        scope.launch(Dispatchers.Main) {
-                                            out += "exit=$exit\n"
-                                            isRunning = false
-                                        }
                                     }
                                 }
                             },

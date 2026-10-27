@@ -1,0 +1,20 @@
+#!/bin/bash
+# MoWin CAD Launcher (SolveSpace 2D/3D Parametric CAD)
+/usr/local/bin/mowin-display
+killall -9 notepad.exe winemine.exe solvespace.exe solvespace_sc.exe 2>/dev/null || true
+sleep 0.5
+
+# Ensure sample models are in C:\samples
+mkdir -p /root/.wine/drive_c/samples 2>/dev/null || true
+if [ -d /opt/cad/samples ]; then
+    cp -u /opt/cad/samples/*.slvs /root/.wine/drive_c/samples/ 2>/dev/null || true
+fi
+
+TARGET="${1:-C:\\samples\\esp32.slvs}"
+if [ -n "$1" ]; then
+    wine explorer.exe /desktop=shell,1280x720 /opt/cad/solvespace.exe "$1" &
+elif [ -f /root/.wine/drive_c/samples/esp32.slvs ]; then
+    wine explorer.exe /desktop=shell,1280x720 /opt/cad/solvespace.exe "C:\\samples\\esp32.slvs" &
+else
+    wine explorer.exe /desktop=shell,1280x720 /opt/cad/solvespace.exe &
+fi

@@ -29,7 +29,11 @@ class ProcessRunner {
 
         val reader = BufferedReader(InputStreamReader(process!!.inputStream))
         Thread {
-            reader.lineSequence().forEach(onLine)
+            try {
+                reader.lineSequence().forEach(onLine)
+            } catch (e: Throwable) {
+                // Stream closed on process exit or destroy
+            }
         }.start()
 
         val exit = process!!.waitFor()
@@ -41,8 +45,11 @@ class ProcessRunner {
         val p = process ?: return
         p.destroy()
         Thread {
-            Thread.sleep(2000)
-            if (p.isAlive) p.destroyForcibly()
+            try {
+                Thread.sleep(2000)
+                if (p.isAlive) p.destroyForcibly()
+            } catch (e: Throwable) {
+            }
         }.start()
     }
 }

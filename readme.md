@@ -255,10 +255,10 @@ Not every game will complete this pipeline successfully. Failures at the CPU, Wi
 
 ### Phase 3 — Cross-architecture execution
 
-- [ ] Evaluate Box64 and FEX for the target environment.
-- [ ] Build or obtain a compatible CPU translation runtime.
-- [ ] Execute a simple x86-64 Linux test binary.
-- [ ] Document architecture, loader, and library compatibility issues.
+- [x] Evaluate Box64 and FEX for the target environment.
+- [x] Build or obtain a compatible CPU translation runtime.
+- [x] Execute a simple x86-64 Linux test binary.
+- [x] Document architecture, loader, and library compatibility issues.
 
 ### Phase 4 — Windows compatibility
 

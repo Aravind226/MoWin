@@ -37,7 +37,7 @@ object ProotLauncher {
         command: List<String>,
     ): List<String> = listOf(
         prootPath,
-        "--kill-on-exit", "--link2symlink", "-0",
+        "--link2symlink", "-0",
         "-r", rootfsPath,
         "-b", "/dev", "-b", "/proc", "-b", "/sys",
         "-b", "$rootfsPath/tmp:/dev/shm",
@@ -45,8 +45,14 @@ object ProotLauncher {
         "-w", "/root",
         "/usr/bin/env", "-i",
         "HOME=/root",
-        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin",
+        "PATH=/opt/hangover/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin",
         "TERM=xterm-256color",
         "LANG=C.UTF-8",
+        "DISPLAY=:0",
+        "WINEDLLPATH=/opt/hangover/lib/wine",
+        "WINESERVER=/opt/hangover/bin/wineserver",
+        "LD_LIBRARY_PATH=/opt/hangover/lib/wine/aarch64-unix:/usr/local/lib:/usr/lib",
+        "VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/freedreno_icd.aarch64.json",
+        "WINEDEBUG=-all",
     ) + command
 }
